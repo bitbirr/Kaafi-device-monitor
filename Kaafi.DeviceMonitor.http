@@ -1,0 +1,6 @@
+@Kaafi.DeviceMonitor_HostAddress = http://localhost:5264
+
+GET {{Kaafi.DeviceMonitor_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###
