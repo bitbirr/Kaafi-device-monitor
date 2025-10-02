@@ -10,8 +10,18 @@ builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents();
 
 // Add DbContext
+var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
-    options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
+{
+    if (connectionString!.Contains(".db"))
+    {
+        options.UseSqlite(connectionString);
+    }
+    else
+    {
+        options.UseSqlServer(connectionString);
+    }
+});
 
 // Add background service
 builder.Services.AddHostedService<DevicePingService>();

@@ -20,6 +20,7 @@ public class ApplicationDbContext : DbContext
         modelBuilder.Entity<Device>(entity =>
         {
             entity.HasKey(e => e.Id);
+            entity.Property(e => e.Id).ValueGeneratedOnAdd();
             entity.Property(e => e.Name).IsRequired();
             entity.Property(e => e.IP).IsRequired();
             entity.Property(e => e.Port).HasDefaultValue(4370);
@@ -32,6 +33,7 @@ public class ApplicationDbContext : DbContext
         modelBuilder.Entity<DeviceHistory>(entity =>
         {
             entity.HasKey(e => e.Id);
+            entity.Property(e => e.Id).ValueGeneratedOnAdd();
             entity.Property(e => e.Status).IsRequired();
             entity.Property(e => e.Timestamp).IsRequired();
         });
