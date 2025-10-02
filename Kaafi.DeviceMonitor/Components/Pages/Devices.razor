@@ -1,0 +1,181 @@
+@page "/devices"
+@using Kaafi.DeviceMonitor.Models
+@using Kaafi.DeviceMonitor.Data
+@using Kaafi.DeviceMonitor.Services
+@using Microsoft.EntityFrameworkCore
+@inject ApplicationDbContext DbContext
+@inject IServiceProvider ServiceProvider
+@rendermode InteractiveServer
+
+<PageTitle>Devices</PageTitle>
+
+<h1>Device Monitor</h1>
+
+<p>Monitor all devices and their status</p>
+
+@if (devices == null)
+{
+    <p><em>Loading...</em></p>
+}
+else
+{
+    <table class="table table-striped">
+        <thead>
+            <tr>
+                <th>S.N</th>
+                <th>Name</th>
+                <th>IP</th>
+                <th>Port</th>
+                <th>Status</th>
+                <th>Last Active</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var (device, index) in devices.Select((d, i) => (d, i)))
+            {
+                <tr>
+                    <td>@(index + 1)</td>
+                    <td>@device.Name</td>
+                    <td>@device.IP</td>
+                    <td>@device.Port</td>
+                    <td>
+                        <span class="badge @GetStatusBadgeClass(device.Status)">
+                            @device.Status
+                        </span>
+                    </td>
+                    <td>@(device.LastActive?.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss") ?? "Never")</td>
+                    <td>
+                        <button class="btn btn-sm btn-primary" @onclick="() => ManualPingAsync(device.Id)">
+                            Manual Ping
+                        </button>
+                        <button class="btn btn-sm btn-info" @onclick="() => ShowHistory(device.Id)">
+                            History
+                        </button>
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+
+@if (showHistoryModal && selectedDeviceHistory != null)
+{
+    <div class="modal show d-block" tabindex="-1" role="dialog">
+        <div class="modal-dialog modal-lg" role="document">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Device History - @selectedDeviceName</h5>
+                    <button type="button" class="btn-close" @onclick="CloseHistory"></button>
+                </div>
+                <div class="modal-body">
+                    <table class="table table-sm">
+                        <thead>
+                            <tr>
+                                <th>Status</th>
+                                <th>Timestamp</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var history in selectedDeviceHistory.OrderByDescending(h => h.Timestamp).Take(50))
+                            {
+                                <tr>
+                                    <td>
+                                        <span class="badge @GetStatusBadgeClass(history.Status)">
+                                            @history.Status
+                                        </span>
+                                    </td>
+                                    <td>@history.Timestamp.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss")</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" @onclick="CloseHistory">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="modal-backdrop show"></div>
+}
+
+@code {
+    private List<Device>? devices;
+    private bool showHistoryModal = false;
+    private List<DeviceHistory>? selectedDeviceHistory;
+    private string selectedDeviceName = string.Empty;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadDevicesAsync();
+    }
+
+    private async Task LoadDevicesAsync()
+    {
+        devices = await DbContext.Devices
+            .OrderBy(d => d.Id)
+            .ToListAsync();
+    }
+
+    private async Task ManualPingAsync(int deviceId)
+    {
+        var device = await DbContext.Devices.FindAsync(deviceId);
+        if (device != null)
+        {
+            var status = await DevicePingService.PingDeviceAsync(device.IP);
+            device.Status = status;
+            
+            if (status == "Online")
+            {
+                device.LastActive = DateTime.UtcNow;
+            }
+
+            // Log to history
+            var history = new DeviceHistory
+            {
+                DeviceId = device.Id,
+                Status = status,
+                Timestamp = DateTime.UtcNow
+            };
+
+            DbContext.DeviceHistories.Add(history);
+            await DbContext.SaveChangesAsync();
+            
+            await LoadDevicesAsync();
+            StateHasChanged();
+        }
+    }
+
+    private async Task ShowHistory(int deviceId)
+    {
+        var device = await DbContext.Devices.FindAsync(deviceId);
+        if (device != null)
+        {
+            selectedDeviceName = device.Name;
+            selectedDeviceHistory = await DbContext.DeviceHistories
+                .Where(h => h.DeviceId == deviceId)
+                .OrderByDescending(h => h.Timestamp)
+                .Take(50)
+                .ToListAsync();
+            showHistoryModal = true;
+        }
+    }
+
+    private void CloseHistory()
+    {
+        showHistoryModal = false;
+        selectedDeviceHistory = null;
+        selectedDeviceName = string.Empty;
+    }
+
+    private string GetStatusBadgeClass(string status)
+    {
+        return status switch
+        {
+            "Online" => "bg-success",
+            "Offline" => "bg-danger",
+            _ => "bg-secondary"
+        };
+    }
+}
