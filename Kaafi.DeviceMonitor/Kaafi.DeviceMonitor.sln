@@ -1,0 +1,24 @@
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.5.2.0
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Kaafi.DeviceMonitor", "Kaafi.DeviceMonitor.csproj", "{3411F309-AC3C-6E04-28FF-99E9105B3776}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{3411F309-AC3C-6E04-28FF-99E9105B3776}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{3411F309-AC3C-6E04-28FF-99E9105B3776}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{3411F309-AC3C-6E04-28FF-99E9105B3776}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{3411F309-AC3C-6E04-28FF-99E9105B3776}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {552236E3-71CC-4FE6-893C-82E48C85568F}
+	EndGlobalSection
+EndGlobal

@@ -1,0 +1,310 @@
+@page "/enroll"
+@using Kaafi.DeviceMonitor.Models
+@using Kaafi.DeviceMonitor.Data
+@using Microsoft.EntityFrameworkCore
+@inject ApplicationDbContext DbContext
+@inject IServiceProvider ServiceProvider
+@rendermode InteractiveServer
+
+<PageTitle>Enroll Employee</PageTitle>
+
+<h1>Employee Enrollment</h1>
+
+<p>Enroll employee fingerprints on devices</p>
+
+@if (currentStep == 1)
+{
+    <div class="card">
+        <div class="card-header">
+            <h5>Step 1: Select Employee</h5>
+        </div>
+        <div class="card-body">
+            <div class="mb-3">
+                <label class="form-label">Search Existing Employee</label>
+                <input type="text" class="form-control" placeholder="Search by name or code..." @bind="employeeSearch" @bind:event="oninput" />
+            </div>
+
+            @if (searchResults != null && searchResults.Any())
+            {
+                <div class="mb-3">
+                    <label class="form-label">Select Employee</label>
+                    <select class="form-control" @bind="selectedEmployeeId">
+                        <option value="">-- Select Employee --</option>
+                        @foreach (var emp in searchResults)
+                        {
+                            <option value="@emp.Id">@emp.FullName (@emp.Code)</option>
+                        }
+                    </select>
+                </div>
+            }
+
+            <hr />
+
+            <h6>Or Create New Employee</h6>
+            <div class="row">
+                <div class="col-md-6">
+                    <div class="mb-3">
+                        <label for="newCode" class="form-label">Employee Code</label>
+                        <input type="text" class="form-control" id="newCode" @bind="newEmployee.Code" required />
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="mb-3">
+                        <label for="newName" class="form-label">Full Name</label>
+                        <input type="text" class="form-control" id="newName" @bind="newEmployee.FullName" required />
+                    </div>
+                </div>
+            </div>
+            <div class="row">
+                <div class="col-md-6">
+                    <div class="mb-3">
+                        <label for="newDept" class="form-label">Department</label>
+                        <input type="text" class="form-control" id="newDept" @bind="newEmployee.Dept" />
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="mb-3">
+                        <label for="newEmail" class="form-label">Email</label>
+                        <input type="email" class="form-control" id="newEmail" @bind="newEmployee.Email" />
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="card-footer">
+            <button class="btn btn-primary" @onclick="NextStep" disabled="@(!CanProceedToStep2)">Next</button>
+        </div>
+    </div>
+}
+else if (currentStep == 2)
+{
+    <div class="card">
+        <div class="card-header">
+            <h5>Step 2: Fingerprint Capture</h5>
+        </div>
+        <div class="card-body">
+            <div class="mb-3">
+                <label class="form-label">Select Device</label>
+                <select class="form-control" @bind="selectedDeviceId">
+                    <option value="">-- Select Device --</option>
+                    @foreach (var device in devices)
+                    {
+                        <option value="@device.Id">@device.Name (@device.IP)</option>
+                    }
+                </select>
+            </div>
+
+            @if (!string.IsNullOrEmpty(selectedDeviceId))
+            {
+                <div class="mb-3">
+                    <h6>Capture Fingerprints</h6>
+                    <p>Place finger on the device scanner and click capture for each finger.</p>
+
+                    <div class="row">
+                        @for (int i = 0; i < 3; i++)
+                        {
+                            <div class="col-md-4 mb-3">
+                                <div class="card">
+                                    <div class="card-body text-center">
+                                        <h6>Finger @(i + 1)</h6>
+                                        @if (fingerStatuses[i] == "pending")
+                                        {
+                                            <button class="btn btn-outline-primary" @onclick="() => CaptureFingerprint(i)">Capture</button>
+                                        }
+                                        else if (fingerStatuses[i] == "capturing")
+                                        {
+                                            <div class="spinner-border text-primary" role="status">
+                                                <span class="visually-hidden">Capturing...</span>
+                                            </div>
+                                            <p>Capturing...</p>
+                                        }
+                                        else if (fingerStatuses[i] == "success")
+                                        {
+                                            <span class="text-success">✓ Success</span>
+                                        }
+                                        else if (fingerStatuses[i] == "error")
+                                        {
+                                            <span class="text-danger">✗ Failed</span>
+                                            <button class="btn btn-sm btn-outline-danger mt-1" @onclick="() => CaptureFingerprint(i)">Retry</button>
+                                        }
+                                    </div>
+                                </div>
+                            </div>
+                        }
+                    </div>
+                </div>
+            }
+        </div>
+        <div class="card-footer d-flex justify-content-between">
+            <button class="btn btn-secondary" @onclick="PreviousStep">Back</button>
+            <button class="btn btn-primary" @onclick="NextStep" disabled="@(!CanProceedToStep3)">Next</button>
+        </div>
+    </div>
+}
+else if (currentStep == 3)
+{
+    <div class="card">
+        <div class="card-header">
+            <h5>Step 3: Confirmation</h5>
+        </div>
+        <div class="card-body">
+            <h6>Enrollment Summary</h6>
+            <p><strong>Employee:</strong> @selectedEmployee?.FullName (@selectedEmployee?.Code)</p>
+            <p><strong>Device:</strong> @selectedDevice?.Name</p>
+            <p><strong>Fingerprints:</strong> @fingerTemplates.Count successful captures</p>
+
+            <div class="alert alert-info">
+                <strong>Note:</strong> This will enroll the employee on the selected device with the captured fingerprints.
+            </div>
+        </div>
+        <div class="card-footer d-flex justify-content-between">
+            <button class="btn btn-secondary" @onclick="PreviousStep">Back</button>
+            <button class="btn btn-success" @onclick="CompleteEnrollment">Complete Enrollment</button>
+        </div>
+    </div>
+}
+
+<div class="mt-4">
+    <div class="progress">
+        <div class="progress-bar" role="progressbar" style="width: @(currentStep * 33.33)%">@currentStep / 3</div>
+    </div>
+</div>
+
+@code {
+    private int currentStep = 1;
+    private List<Employee>? searchResults;
+    private string _employeeSearch = string.Empty;
+    private string employeeSearch
+    {
+        get => _employeeSearch;
+        set
+        {
+            _employeeSearch = value;
+            _ = SearchEmployees();
+        }
+    }
+    private int? selectedEmployeeId;
+    private Employee newEmployee = new();
+    private Employee? selectedEmployee;
+    private List<Device>? devices;
+    private string selectedDeviceId = string.Empty;
+    private Device? selectedDevice;
+    private List<string> fingerStatuses = new() { "pending", "pending", "pending" };
+    private List<byte[]> fingerTemplates = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        devices = await DbContext.Devices.Where(d => d.Status == "Online").ToListAsync();
+    }
+
+    private async Task SearchEmployees()
+    {
+        if (!string.IsNullOrWhiteSpace(employeeSearch))
+        {
+            searchResults = await DbContext.Employees
+                .Where(e => e.FullName.Contains(employeeSearch) || e.Code.Contains(employeeSearch))
+                .Take(10)
+                .ToListAsync();
+        }
+        else
+        {
+            searchResults = null;
+        }
+        StateHasChanged();
+    }
+
+    private bool CanProceedToStep2 => selectedEmployeeId.HasValue ||
+        (!string.IsNullOrWhiteSpace(newEmployee.Code) && !string.IsNullOrWhiteSpace(newEmployee.FullName));
+
+    private bool CanProceedToStep3 => !string.IsNullOrEmpty(selectedDeviceId) && fingerStatuses.All(s => s == "success");
+
+    private async Task NextStep()
+    {
+        if (currentStep == 1)
+        {
+            await SelectEmployee();
+            currentStep = 2;
+        }
+        else if (currentStep == 2)
+        {
+            currentStep = 3;
+        }
+    }
+
+    private void PreviousStep()
+    {
+        if (currentStep > 1)
+        {
+            currentStep--;
+        }
+    }
+
+    private async Task SelectEmployee()
+    {
+        if (selectedEmployeeId.HasValue)
+        {
+            selectedEmployee = await DbContext.Employees.FindAsync(selectedEmployeeId.Value);
+        }
+        else
+        {
+            // Create new employee
+            DbContext.Employees.Add(newEmployee);
+            await DbContext.SaveChangesAsync();
+            selectedEmployee = newEmployee;
+        }
+    }
+
+    private async Task CaptureFingerprint(int fingerIndex)
+    {
+        fingerStatuses[fingerIndex] = "capturing";
+        StateHasChanged();
+
+        // Simulate capture process
+        await Task.Delay(2000);
+
+        // Mock success/failure
+        var success = Random.Shared.Next(0, 10) > 1; // 80% success rate
+        if (success)
+        {
+            fingerStatuses[fingerIndex] = "success";
+            fingerTemplates.Add(new byte[512]); // Mock template
+        }
+        else
+        {
+            fingerStatuses[fingerIndex] = "error";
+        }
+
+        StateHasChanged();
+    }
+
+    private async Task CompleteEnrollment()
+    {
+        if (selectedEmployee == null || selectedDevice == null) return;
+
+        foreach (var (template, index) in fingerTemplates.Select((t, i) => (t, i)))
+        {
+            var enrollment = new Enrollment
+            {
+                EmployeeId = selectedEmployee.Id,
+                DeviceId = int.Parse(selectedDeviceId),
+                EnrollId = $"{selectedEmployee.Code}_{index + 1}",
+                FingerIndex = index,
+                Template = template
+            };
+            DbContext.Enrollments.Add(enrollment);
+        }
+
+        await DbContext.SaveChangesAsync();
+
+        // Reset wizard
+        currentStep = 1;
+        selectedEmployeeId = null;
+        newEmployee = new();
+        selectedEmployee = null;
+        selectedDeviceId = string.Empty;
+        selectedDevice = null;
+        fingerStatuses = new() { "pending", "pending", "pending" };
+        fingerTemplates.Clear();
+
+        StateHasChanged();
+    }
+}

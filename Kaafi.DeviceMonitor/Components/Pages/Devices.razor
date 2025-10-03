@@ -13,6 +13,14 @@
 
 <p>Monitor all devices and their status</p>
 
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <div class="d-flex gap-2">
+        <input type="text" class="form-control" placeholder="Search devices..." @bind="searchTerm" @bind:event="oninput" style="width: 300px;" />
+        <button class="btn btn-primary" @onclick="RegisterDevice">Register New Device</button>
+        <button class="btn btn-success" @onclick="PingSelectedDevices" disabled="@(!selectedDevices.Any())">Ping Selected</button>
+    </div>
+</div>
+
 @if (devices == null)
 {
     <p><em>Loading...</em></p>
@@ -22,6 +30,9 @@ else
     <table class="table table-striped">
         <thead>
             <tr>
+                <th>
+                    <input type="checkbox" @onchange="ToggleAllSelection" />
+                </th>
                 <th>S.N</th>
                 <th>Name</th>
                 <th>IP</th>
@@ -35,6 +46,9 @@ else
             @foreach (var (device, index) in devices.Select((d, i) => (d, i)))
             {
                 <tr>
+                    <td>
+                        <input type="checkbox" checked="@selectedDevices.Contains(device.Id)" @onchange="(e) => ToggleDeviceSelection(device.Id, (bool)e.Value!)" />
+                    </td>
                     <td>@(index + 1)</td>
                     <td>@device.Name</td>
                     <td>@device.IP</td>
@@ -69,6 +83,26 @@ else
                     <button type="button" class="btn-close" @onclick="CloseHistory"></button>
                 </div>
                 <div class="modal-body">
+                    <div class="row mb-3">
+                        <div class="col-md-4">
+                            <label class="form-label">Start Date</label>
+                            <input type="date" class="form-control" value="@historyStartDate?.ToString("yyyy-MM-dd")" @onchange="OnStartDateChanged" />
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">End Date</label>
+                            <input type="date" class="form-control" value="@historyEndDate?.ToString("yyyy-MM-dd")" @onchange="OnEndDateChanged" />
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">Page Size</label>
+                            <select class="form-control" @onchange="OnPageSizeChanged">
+                                <option value="10" selected="@(historyPageSize == 10)">10</option>
+                                <option value="20" selected="@(historyPageSize == 20)">20</option>
+                                <option value="50" selected="@(historyPageSize == 50)">50</option>
+                                <option value="100" selected="@(historyPageSize == 100)">100</option>
+                            </select>
+                        </div>
+                    </div>
+
                     <table class="table table-sm">
                         <thead>
                             <tr>
@@ -77,22 +111,78 @@ else
                             </tr>
                         </thead>
                         <tbody>
-                            @foreach (var history in selectedDeviceHistory.OrderByDescending(h => h.Timestamp).Take(50))
+                            @if (selectedDeviceHistory != null)
                             {
-                                <tr>
-                                    <td>
-                                        <span class="badge @GetStatusBadgeClass(history.Status)">
-                                            @history.Status
-                                        </span>
-                                    </td>
-                                    <td>@history.Timestamp.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss")</td>
-                                </tr>
+                                @foreach (var history in selectedDeviceHistory)
+                                {
+                                    <tr>
+                                        <td>
+                                            <span class="badge @GetStatusBadgeClass(history.Status)">
+                                                @history.Status
+                                            </span>
+                                        </td>
+                                        <td>@history.Timestamp.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss")</td>
+                                    </tr>
+                                }
                             }
                         </tbody>
                     </table>
+
+                    @if (historyTotalPages > 1)
+                    {
+                        <nav aria-label="History pagination">
+                            <ul class="pagination justify-content-center">
+                                <li class="page-item @(historyCurrentPage == 1 ? "disabled" : "")">
+                                    <a class="page-link" @onclick="() => ChangeHistoryPage(historyCurrentPage - 1)">Previous</a>
+                                </li>
+                                @for (int i = 1; i <= historyTotalPages; i++)
+                                {
+                                    <li class="page-item @(i == historyCurrentPage ? "active" : "")">
+                                        <a class="page-link" @onclick="() => ChangeHistoryPage(i)">@i</a>
+                                    </li>
+                                }
+                                <li class="page-item @(historyCurrentPage == historyTotalPages ? "disabled" : "")">
+                                    <a class="page-link" @onclick="() => ChangeHistoryPage(historyCurrentPage + 1)">Next</a>
+                                </li>
+                            </ul>
+                        </nav>
+                    }
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" @onclick="CloseHistory">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="modal-backdrop show"></div>
+}
+
+@if (showRegisterModal)
+{
+    <div class="modal show d-block" tabindex="-1" role="dialog">
+        <div class="modal-dialog" role="document">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Register New Device</h5>
+                    <button type="button" class="btn-close" @onclick="CancelRegister"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label for="deviceName" class="form-label">Device Name</label>
+                        <input type="text" class="form-control" id="deviceName" @bind="newDevice.Name" required />
+                    </div>
+                    <div class="mb-3">
+                        <label for="deviceIP" class="form-label">IP Address</label>
+                        <input type="text" class="form-control" id="deviceIP" @bind="newDevice.IP" required />
+                    </div>
+                    <div class="mb-3">
+                        <label for="devicePort" class="form-label">Port</label>
+                        <input type="number" class="form-control" id="devicePort" @bind="newDevice.Port" min="1" max="65535" />
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" @onclick="CancelRegister">Cancel</button>
+                    <button type="button" class="btn btn-primary" @onclick="SaveNewDevice">Save</button>
                 </div>
             </div>
         </div>
@@ -105,6 +195,15 @@ else
     private bool showHistoryModal = false;
     private List<DeviceHistory>? selectedDeviceHistory;
     private string selectedDeviceName = string.Empty;
+    private string searchTerm = string.Empty;
+    private HashSet<int> selectedDevices = new();
+    private bool showRegisterModal = false;
+    private Device newDevice = new();
+    private DateTime? historyStartDate;
+    private DateTime? historyEndDate;
+    private int historyPageSize = 20;
+    private int historyCurrentPage = 1;
+    private int historyTotalPages = 1;
 
     protected override async Task OnInitializedAsync()
     {
@@ -113,7 +212,14 @@ else
 
     private async Task LoadDevicesAsync()
     {
-        devices = await DbContext.Devices
+        var query = DbContext.Devices.AsQueryable();
+
+        if (!string.IsNullOrWhiteSpace(searchTerm))
+        {
+            query = query.Where(d => d.Name.Contains(searchTerm) || d.IP.Contains(searchTerm));
+        }
+
+        devices = await query
             .OrderBy(d => d.Id)
             .ToListAsync();
     }
@@ -153,13 +259,34 @@ else
         if (device != null)
         {
             selectedDeviceName = device.Name;
-            selectedDeviceHistory = await DbContext.DeviceHistories
-                .Where(h => h.DeviceId == deviceId)
-                .OrderByDescending(h => h.Timestamp)
-                .Take(50)
-                .ToListAsync();
+            await LoadDeviceHistory(deviceId);
             showHistoryModal = true;
         }
+    }
+
+    private async Task LoadDeviceHistory(int deviceId)
+    {
+        var query = DbContext.DeviceHistories
+            .Where(h => h.DeviceId == deviceId);
+
+        if (historyStartDate.HasValue)
+        {
+            query = query.Where(h => h.Timestamp >= historyStartDate.Value.Date);
+        }
+
+        if (historyEndDate.HasValue)
+        {
+            query = query.Where(h => h.Timestamp <= historyEndDate.Value.Date.AddDays(1));
+        }
+
+        var totalRecords = await query.CountAsync();
+        historyTotalPages = (int)Math.Ceiling(totalRecords / (double)historyPageSize);
+
+        selectedDeviceHistory = await query
+            .OrderByDescending(h => h.Timestamp)
+            .Skip((historyCurrentPage - 1) * historyPageSize)
+            .Take(historyPageSize)
+            .ToListAsync();
     }
 
     private void CloseHistory()
@@ -167,6 +294,111 @@ else
         showHistoryModal = false;
         selectedDeviceHistory = null;
         selectedDeviceName = string.Empty;
+        historyStartDate = null;
+        historyEndDate = null;
+        historyCurrentPage = 1;
+    }
+
+    private async Task RefreshHistory()
+    {
+        if (showHistoryModal && !string.IsNullOrEmpty(selectedDeviceName))
+        {
+            var device = await DbContext.Devices.FirstOrDefaultAsync(d => d.Name == selectedDeviceName);
+            if (device != null)
+            {
+                historyCurrentPage = 1; // Reset to first page when filters change
+                await LoadDeviceHistory(device.Id);
+                StateHasChanged();
+            }
+        }
+    }
+
+    private async Task ChangeHistoryPage(int page)
+    {
+        if (page >= 1 && page <= historyTotalPages)
+        {
+            historyCurrentPage = page;
+            await RefreshHistory();
+        }
+    }
+
+    private async Task OnStartDateChanged(ChangeEventArgs e)
+    {
+        historyStartDate = DateTime.TryParse(e.Value?.ToString(), out var d) ? d : null;
+        await RefreshHistory();
+    }
+
+    private async Task OnEndDateChanged(ChangeEventArgs e)
+    {
+        historyEndDate = DateTime.TryParse(e.Value?.ToString(), out var d) ? d : null;
+        await RefreshHistory();
+    }
+
+    private async Task OnPageSizeChanged(ChangeEventArgs e)
+    {
+        historyPageSize = int.Parse(e.Value?.ToString() ?? "20");
+        await RefreshHistory();
+    }
+
+    private void RegisterDevice()
+    {
+        newDevice = new Device { Port = 4370 };
+        showRegisterModal = true;
+    }
+
+    private async Task PingSelectedDevices()
+    {
+        foreach (var deviceId in selectedDevices)
+        {
+            await ManualPingAsync(deviceId);
+        }
+        selectedDevices.Clear();
+        await LoadDevicesAsync();
+    }
+
+    private async Task SaveNewDevice()
+    {
+        if (string.IsNullOrWhiteSpace(newDevice.Name) || string.IsNullOrWhiteSpace(newDevice.IP))
+        {
+            return;
+        }
+
+        DbContext.Devices.Add(newDevice);
+        await DbContext.SaveChangesAsync();
+        showRegisterModal = false;
+        newDevice = new();
+        await LoadDevicesAsync();
+    }
+
+    private void CancelRegister()
+    {
+        showRegisterModal = false;
+        newDevice = new();
+    }
+
+    private void ToggleDeviceSelection(int deviceId, bool isSelected)
+    {
+        if (isSelected)
+        {
+            selectedDevices.Add(deviceId);
+        }
+        else
+        {
+            selectedDevices.Remove(deviceId);
+        }
+    }
+
+    private void ToggleAllSelection(ChangeEventArgs e)
+    {
+        bool isSelected = (bool)e.Value!;
+        if (isSelected)
+        {
+            selectedDevices = devices?.Select(d => d.Id).ToHashSet() ?? new();
+        }
+        else
+        {
+            selectedDevices.Clear();
+        }
     }
 
     private string GetStatusBadgeClass(string status)

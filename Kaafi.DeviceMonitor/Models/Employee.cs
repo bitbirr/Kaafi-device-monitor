@@ -17,6 +17,10 @@ public class Employee
     [StringLength(100)]
     public string Dept { get; set; } = string.Empty;
 
+    [EmailAddress]
+    [StringLength(200)]
+    public string? Email { get; set; }
+
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
     public ICollection<Enrollment> Enrollments { get; set; } = new List<Enrollment>();

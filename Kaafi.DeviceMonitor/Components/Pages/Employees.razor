@@ -1,0 +1,290 @@
+@page "/employees"
+@using Kaafi.DeviceMonitor.Models
+@using Kaafi.DeviceMonitor.Data
+@using Microsoft.EntityFrameworkCore
+@inject ApplicationDbContext DbContext
+@inject IServiceProvider ServiceProvider
+@rendermode InteractiveServer
+
+<PageTitle>Employees</PageTitle>
+
+<h1>Employee Management</h1>
+
+<p>Manage employee records and information</p>
+
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <div class="d-flex gap-2">
+        <input type="text" class="form-control" placeholder="Search employees..." @bind="searchTerm" @bind:event="oninput" style="width: 300px;" />
+        <button class="btn btn-primary" @onclick="AddEmployee">Add Employee</button>
+        <button class="btn btn-danger" @onclick="DeleteSelected" disabled="@(!selectedEmployees.Any())">Delete Selected</button>
+    </div>
+</div>
+
+@if (employees == null)
+{
+    <p><em>Loading...</em></p>
+}
+else if (!employees.Any())
+{
+    <p>No employees found.</p>
+}
+else
+{
+    <div class="row">
+        @foreach (var employee in employees)
+        {
+            <div class="col-md-4 mb-4">
+                <div class="card h-100">
+                    <div class="card-body">
+                        <div class="d-flex align-items-center mb-3">
+                            <input type="checkbox" class="me-2" checked="@selectedEmployees.Contains(employee.Id)" @onchange="(e) => ToggleEmployeeSelection(employee.Id, (bool)e.Value!)" />
+                            <h5 class="card-title mb-0">@employee.FullName</h5>
+                        </div>
+                        <p class="card-text">
+                            <strong>ID:</strong> @employee.Code<br />
+                            <strong>Department:</strong> @employee.Dept<br />
+                            <strong>Created:</strong> @employee.CreatedAt.ToLocalTime().ToString("yyyy-MM-dd")
+                        </p>
+                        <div class="d-flex gap-2">
+                            <button class="btn btn-sm btn-outline-primary" @onclick="() => EditEmployee(employee)">Edit</button>
+                            <button class="btn btn-sm btn-outline-danger" @onclick="() => ConfirmDelete(employee)">Delete</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        }
+    </div>
+
+    @if (totalPages > 1)
+    {
+        <nav aria-label="Employee pagination" class="mt-4">
+            <ul class="pagination justify-content-center">
+                <li class="page-item @(currentPage == 1 ? "disabled" : "")">
+                    <a class="page-link" @onclick="() => ChangePage(currentPage - 1)">Previous</a>
+                </li>
+                @for (int i = 1; i <= totalPages; i++)
+                {
+                    <li class="page-item @(i == currentPage ? "active" : "")">
+                        <a class="page-link" @onclick="() => ChangePage(i)">@i</a>
+                    </li>
+                }
+                <li class="page-item @(currentPage == totalPages ? "disabled" : "")">
+                    <a class="page-link" @onclick="() => ChangePage(currentPage + 1)">Next</a>
+                </li>
+            </ul>
+        </nav>
+    }
+}
+
+@if (showEmployeeModal)
+{
+    <div class="modal show d-block" tabindex="-1" role="dialog">
+        <div class="modal-dialog" role="document">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">@(isEditing ? "Edit Employee" : "Add Employee")</h5>
+                    <button type="button" class="btn-close" @onclick="CancelEdit"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label for="employeeCode" class="form-label">Employee Code</label>
+                        <input type="text" class="form-control" id="employeeCode" @bind="currentEmployee.Code" required />
+                    </div>
+                    <div class="mb-3">
+                        <label for="employeeName" class="form-label">Full Name</label>
+                        <input type="text" class="form-control" id="employeeName" @bind="currentEmployee.FullName" required />
+                    </div>
+                    <div class="mb-3">
+                        <label for="employeeDept" class="form-label">Department</label>
+                        <input type="text" class="form-control" id="employeeDept" @bind="currentEmployee.Dept" />
+                    </div>
+                    <div class="mb-3">
+                        <label for="employeeEmail" class="form-label">Email</label>
+                        <input type="email" class="form-control" id="employeeEmail" @bind="currentEmployee.Email" />
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" @onclick="CancelEdit">Cancel</button>
+                    <button type="button" class="btn btn-primary" @onclick="SaveEmployee">Save</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="modal-backdrop show"></div>
+}
+
+@if (showDeleteConfirm)
+{
+    <div class="modal show d-block" tabindex="-1" role="dialog">
+        <div class="modal-dialog" role="document">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Confirm Delete</h5>
+                    <button type="button" class="btn-close" @onclick="CancelDelete"></button>
+                </div>
+                <div class="modal-body">
+                    <p>Are you sure you want to delete employee "@employeeToDelete?.FullName"?</p>
+                    <p class="text-danger">This action cannot be undone.</p>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" @onclick="CancelDelete">Cancel</button>
+                    <button type="button" class="btn btn-danger" @onclick="DeleteEmployee">Delete</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="modal-backdrop show"></div>
+}
+
+@code {
+    private List<Employee>? employees;
+    private string searchTerm = string.Empty;
+    private int currentPage = 1;
+    private int pageSize = 12;
+    private int totalPages = 1;
+    private HashSet<int> selectedEmployees = new();
+    private bool showEmployeeModal = false;
+    private bool isEditing = false;
+    private Employee currentEmployee = new();
+    private bool showDeleteConfirm = false;
+    private Employee? employeeToDelete;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadEmployeesAsync();
+    }
+
+    private async Task LoadEmployeesAsync()
+    {
+        var query = DbContext.Employees.AsQueryable();
+
+        if (!string.IsNullOrWhiteSpace(searchTerm))
+        {
+            query = query.Where(e => e.FullName.Contains(searchTerm) || e.Code.Contains(searchTerm) || e.Dept.Contains(searchTerm));
+        }
+
+        var totalRecords = await query.CountAsync();
+        totalPages = (int)Math.Ceiling(totalRecords / (double)pageSize);
+
+        employees = await query
+            .OrderBy(e => e.Id)
+            .Skip((currentPage - 1) * pageSize)
+            .Take(pageSize)
+            .ToListAsync();
+    }
+
+    private void AddEmployee()
+    {
+        currentEmployee = new Employee();
+        isEditing = false;
+        showEmployeeModal = true;
+    }
+
+    private void EditEmployee(Employee employee)
+    {
+        currentEmployee = new Employee
+        {
+            Id = employee.Id,
+            Code = employee.Code,
+            FullName = employee.FullName,
+            Dept = employee.Dept,
+            Email = employee.Email ?? string.Empty,
+            CreatedAt = employee.CreatedAt
+        };
+        isEditing = true;
+        showEmployeeModal = true;
+    }
+
+    private async Task SaveEmployee()
+    {
+        if (string.IsNullOrWhiteSpace(currentEmployee.Code) || string.IsNullOrWhiteSpace(currentEmployee.FullName))
+        {
+            return;
+        }
+
+        if (isEditing)
+        {
+            var existing = await DbContext.Employees.FindAsync(currentEmployee.Id);
+            if (existing != null)
+            {
+                existing.Code = currentEmployee.Code;
+                existing.FullName = currentEmployee.FullName;
+                existing.Dept = currentEmployee.Dept;
+                existing.Email = currentEmployee.Email;
+            }
+        }
+        else
+        {
+            DbContext.Employees.Add(currentEmployee);
+        }
+
+        await DbContext.SaveChangesAsync();
+        showEmployeeModal = false;
+        currentEmployee = new();
+        await LoadEmployeesAsync();
+    }
+
+    private void CancelEdit()
+    {
+        showEmployeeModal = false;
+        currentEmployee = new();
+    }
+
+    private void ConfirmDelete(Employee employee)
+    {
+        employeeToDelete = employee;
+        showDeleteConfirm = true;
+    }
+
+    private async Task DeleteEmployee()
+    {
+        if (employeeToDelete != null)
+        {
+            DbContext.Employees.Remove(employeeToDelete);
+            await DbContext.SaveChangesAsync();
+            selectedEmployees.Remove(employeeToDelete.Id);
+        }
+        showDeleteConfirm = false;
+        employeeToDelete = null;
+        await LoadEmployeesAsync();
+    }
+
+    private void CancelDelete()
+    {
+        showDeleteConfirm = false;
+        employeeToDelete = null;
+    }
+
+    private async Task DeleteSelected()
+    {
+        var employeesToDelete = employees?.Where(e => selectedEmployees.Contains(e.Id)).ToList();
+        if (employeesToDelete != null)
+        {
+            DbContext.Employees.RemoveRange(employeesToDelete);
+            await DbContext.SaveChangesAsync();
+            selectedEmployees.Clear();
+            await LoadEmployeesAsync();
+        }
+    }
+
+    private void ToggleEmployeeSelection(int employeeId, bool isSelected)
+    {
+        if (isSelected)
+        {
+            selectedEmployees.Add(employeeId);
+        }
+        else
+        {
+            selectedEmployees.Remove(employeeId);
+        }
+    }
+
+    private async Task ChangePage(int page)
+    {
+        if (page >= 1 && page <= totalPages)
+        {
+            currentPage = page;
+            await LoadEmployeesAsync();
+        }
+    }
+}

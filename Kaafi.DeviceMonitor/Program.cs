@@ -9,6 +9,8 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents();
 
+builder.Services.AddControllers();
+
 // Add DbContext
 var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
@@ -25,6 +27,22 @@ builder.Services.AddDbContext<ApplicationDbContext>(options =>
 
 // Add background service
 builder.Services.AddHostedService<DevicePingService>();
+
+// Add API services
+builder.Services.AddScoped<DeviceApiService>();
+builder.Services.AddScoped<EmployeeApiService>();
+builder.Services.AddScoped<EnrollmentApiService>();
+builder.Services.AddScoped<AttendanceApiService>();
+
+// Add toast service
+builder.Services.AddScoped<ToastService>();
+
+// Configure HttpClient for API calls
+builder.Services.AddHttpClient("ApiClient", client =>
+{
+    client.BaseAddress = new Uri(builder.WebHost.GetSetting("https_port") ?? "https://localhost:5001");
+});
+builder.Services.AddScoped(sp => sp.GetRequiredService<IHttpClientFactory>().CreateClient("ApiClient"));
 
 var app = builder.Build();
 
@@ -47,5 +65,7 @@ app.UseAntiforgery();
 
 app.MapRazorComponents<App>()
     .AddInteractiveServerRenderMode();
+
+app.MapControllers();
 
 app.Run();

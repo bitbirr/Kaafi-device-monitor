@@ -14,6 +14,7 @@ public class ApplicationDbContext : DbContext
     public DbSet<DeviceHistory> DeviceHistories { get; set; }
     public DbSet<Employee> Employees { get; set; }
     public DbSet<Enrollment> Enrollments { get; set; }
+    public DbSet<Attendance> Attendances { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -46,6 +47,7 @@ public class ApplicationDbContext : DbContext
             entity.Property(e => e.Id).ValueGeneratedOnAdd();
             entity.Property(e => e.Code).IsRequired();
             entity.Property(e => e.FullName).IsRequired();
+            entity.Property(e => e.Email).HasMaxLength(200);
             entity.Property(e => e.CreatedAt).IsRequired();
             entity.HasMany(e => e.Enrollments)
                 .WithOne(e => e.Employee)
@@ -64,6 +66,22 @@ public class ApplicationDbContext : DbContext
                 .WithMany(d => d.Enrollments)
                 .HasForeignKey(e => e.DeviceId)
                 .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<Attendance>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Id).ValueGeneratedOnAdd();
+            entity.Property(e => e.InOut).IsRequired();
+            entity.Property(e => e.Timestamp).IsRequired();
+            entity.HasOne(e => e.Employee)
+                .WithMany()
+                .HasForeignKey(e => e.EmployeeId)
+                .OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne(e => e.Device)
+                .WithMany()
+                .HasForeignKey(e => e.DeviceId)
+                .OnDelete(DeleteBehavior.SetNull);
         });
     }
 }
