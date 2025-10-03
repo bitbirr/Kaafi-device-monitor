@@ -11,7 +11,7 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace Kaafi.DeviceMonitor.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    [Migration("20251002130925_AddEmployeesAndEnrollments")]
+    [Migration("20251003073336_AddEmployeesAndEnrollments")]
     partial class AddEmployeesAndEnrollments
     {
         /// <inheritdoc />
@@ -89,6 +89,9 @@ namespace Kaafi.DeviceMonitor.Migrations
                         .HasMaxLength(50)
                         .HasColumnType("TEXT");
 
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("TEXT");
+
                     b.Property<string>("Dept")
                         .IsRequired()
                         .HasMaxLength(100)
@@ -119,12 +122,17 @@ namespace Kaafi.DeviceMonitor.Migrations
                     b.Property<int>("EmployeeId")
                         .HasColumnType("INTEGER");
 
+                    b.Property<string>("EnrollId")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("TEXT");
+
                     b.Property<int>("FingerIndex")
                         .HasColumnType("INTEGER");
 
-                    b.Property<string>("Template")
+                    b.Property<byte[]>("Template")
                         .IsRequired()
-                        .HasColumnType("TEXT");
+                        .HasColumnType("BLOB");
 
                     b.HasKey("Id");
 

@@ -17,5 +17,7 @@ public class Employee
     [StringLength(100)]
     public string Dept { get; set; } = string.Empty;
 
+    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+
     public ICollection<Enrollment> Enrollments { get; set; } = new List<Enrollment>();
 }

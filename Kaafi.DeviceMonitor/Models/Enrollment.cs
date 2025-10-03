@@ -10,10 +10,14 @@ public class Enrollment
 
     public int DeviceId { get; set; }
 
+    [Required]
+    [StringLength(50)]
+    public string EnrollId { get; set; } = string.Empty;
+
     public int FingerIndex { get; set; }
 
     [Required]
-    public string Template { get; set; } = string.Empty;
+    public byte[] Template { get; set; } = Array.Empty<byte>();
 
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
