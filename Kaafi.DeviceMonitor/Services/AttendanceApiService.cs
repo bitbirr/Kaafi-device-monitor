@@ -1,3 +1,7 @@
+// Adding missing usings
+using System.Threading.Tasks;
+using System.Collections.Generic;
+using System.Net.Http;
 using System.Net.Http.Json;
 using Kaafi.DeviceMonitor.Models;
 

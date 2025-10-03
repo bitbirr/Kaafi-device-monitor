@@ -5,8 +5,6 @@ VisualStudioVersion = 17.5.2.0
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Kaafi.DeviceMonitor", "Kaafi.DeviceMonitor.csproj", "{3411F309-AC3C-6E04-28FF-99E9105B3776}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Kaafi.DeviceMonitor.Tests", "Kaafi.DeviceMonitor.Tests\Kaafi.DeviceMonitor.Tests.csproj", "{40CDCEEE-B9A9-48E8-B40A-1EA8328DBC02}"
-EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU

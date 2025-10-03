@@ -113,6 +113,7 @@ app.UseMiddleware<Kaafi.DeviceMonitor.Middleware.GlobalExceptionHandler>();
 
 app.UseAuthentication();
 app.UseAuthorization();
+    app.UseHttpsRedirection();
 
 app.MapRazorComponents<App>()
     .AddInteractiveServerRenderMode();
