@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Kaafi.DeviceMonitor.Data;
@@ -5,6 +6,7 @@ using Kaafi.DeviceMonitor.Models;
 
 namespace Kaafi.DeviceMonitor.Controllers;
 
+[Authorize]
 [ApiController]
 [Route("api/[controller]")]
 public class EnrollmentsController : ControllerBase

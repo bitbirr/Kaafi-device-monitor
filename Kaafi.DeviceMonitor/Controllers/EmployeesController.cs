@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Kaafi.DeviceMonitor.Data;
@@ -5,6 +6,7 @@ using Kaafi.DeviceMonitor.Models;
 
 namespace Kaafi.DeviceMonitor.Controllers;
 
+[Authorize]
 [ApiController]
 [Route("api/[controller]")]
 public class EmployeesController : ControllerBase
@@ -55,6 +57,30 @@ public class EmployeesController : ControllerBase
     [HttpPost]
     public async Task<ActionResult<Employee>> CreateEmployee(Employee employee)
     {
+        if (!ModelState.IsValid)
+        {
+            return BadRequest(ModelState);
+        }
+
+        // Validate required fields
+        if (string.IsNullOrWhiteSpace(employee.Code))
+        {
+            return BadRequest("Employee code is required");
+        }
+
+        if (string.IsNullOrWhiteSpace(employee.FullName))
+        {
+            return BadRequest("Employee full name is required");
+        }
+
+        // Check for duplicate code
+        var existingEmployee = await _context.Employees.FirstOrDefaultAsync(e => e.Code == employee.Code);
+        if (existingEmployee != null)
+        {
+            return BadRequest("Employee code already exists");
+        }
+
+        employee.CreatedAt = DateTime.UtcNow;
         _context.Employees.Add(employee);
         await _context.SaveChangesAsync();
         return CreatedAtAction(nameof(GetEmployee), new { id = employee.Id }, employee);
@@ -65,7 +91,30 @@ public class EmployeesController : ControllerBase
     {
         if (id != employee.Id)
         {
-            return BadRequest();
+            return BadRequest("ID mismatch");
+        }
+
+        if (!ModelState.IsValid)
+        {
+            return BadRequest(ModelState);
+        }
+
+        // Validate required fields
+        if (string.IsNullOrWhiteSpace(employee.Code))
+        {
+            return BadRequest("Employee code is required");
+        }
+
+        if (string.IsNullOrWhiteSpace(employee.FullName))
+        {
+            return BadRequest("Employee full name is required");
+        }
+
+        // Check for duplicate code (excluding current employee)
+        var existingEmployee = await _context.Employees.FirstOrDefaultAsync(e => e.Code == employee.Code && e.Id != id);
+        if (existingEmployee != null)
+        {
+            return BadRequest("Employee code already exists");
         }
 
         _context.Entry(employee).State = EntityState.Modified;

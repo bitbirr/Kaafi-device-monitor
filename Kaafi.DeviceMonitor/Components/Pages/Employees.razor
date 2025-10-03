@@ -1,9 +1,8 @@
 @page "/employees"
 @using Kaafi.DeviceMonitor.Models
-@using Kaafi.DeviceMonitor.Data
-@using Microsoft.EntityFrameworkCore
-@inject ApplicationDbContext DbContext
-@inject IServiceProvider ServiceProvider
+@using Kaafi.DeviceMonitor.Services
+@inject EmployeeApiService EmployeeApiService
+@inject ToastService ToastService
 @rendermode InteractiveServer
 
 <PageTitle>Employees</PageTitle>
@@ -156,21 +155,16 @@ else
 
     private async Task LoadEmployeesAsync()
     {
-        var query = DbContext.Employees.AsQueryable();
-
-        if (!string.IsNullOrWhiteSpace(searchTerm))
+        try
         {
-            query = query.Where(e => e.FullName.Contains(searchTerm) || e.Code.Contains(searchTerm) || e.Dept.Contains(searchTerm));
+            var result = await EmployeeApiService.GetEmployeesAsync(searchTerm, currentPage, pageSize);
+            employees = result.employees;
+            totalPages = (int)Math.Ceiling(result.totalCount / (double)pageSize);
         }
-
-        var totalRecords = await query.CountAsync();
-        totalPages = (int)Math.Ceiling(totalRecords / (double)pageSize);
-
-        employees = await query
-            .OrderBy(e => e.Id)
-            .Skip((currentPage - 1) * pageSize)
-            .Take(pageSize)
-            .ToListAsync();
+        catch (Exception ex)
+        {
+            await ToastService.ShowErrorAsync($"Failed to load employees: {ex.Message}");
+        }
     }
 
     private void AddEmployee()
@@ -199,29 +193,31 @@ else
     {
         if (string.IsNullOrWhiteSpace(currentEmployee.Code) || string.IsNullOrWhiteSpace(currentEmployee.FullName))
         {
+            await ToastService.ShowErrorAsync("Employee code and name are required");
             return;
         }
 
-        if (isEditing)
+        try
         {
-            var existing = await DbContext.Employees.FindAsync(currentEmployee.Id);
-            if (existing != null)
+            if (isEditing)
             {
-                existing.Code = currentEmployee.Code;
-                existing.FullName = currentEmployee.FullName;
-                existing.Dept = currentEmployee.Dept;
-                existing.Email = currentEmployee.Email;
+                await EmployeeApiService.UpdateEmployeeAsync(currentEmployee);
+                await ToastService.ShowSuccessAsync("Employee updated successfully");
             }
-        }
-        else
-        {
-            DbContext.Employees.Add(currentEmployee);
-        }
+            else
+            {
+                await EmployeeApiService.CreateEmployeeAsync(currentEmployee);
+                await ToastService.ShowSuccessAsync("Employee created successfully");
+            }
 
-        await DbContext.SaveChangesAsync();
-        showEmployeeModal = false;
-        currentEmployee = new();
-        await LoadEmployeesAsync();
+            showEmployeeModal = false;
+            currentEmployee = new();
+            await LoadEmployeesAsync();
+        }
+        catch (Exception ex)
+        {
+            await ToastService.ShowErrorAsync($"Failed to save employee: {ex.Message}");
+        }
     }
 
     private void CancelEdit()
@@ -240,9 +236,16 @@ else
     {
         if (employeeToDelete != null)
         {
-            DbContext.Employees.Remove(employeeToDelete);
-            await DbContext.SaveChangesAsync();
-            selectedEmployees.Remove(employeeToDelete.Id);
+            try
+            {
+                await EmployeeApiService.DeleteEmployeeAsync(employeeToDelete.Id);
+                selectedEmployees.Remove(employeeToDelete.Id);
+                await ToastService.ShowSuccessAsync("Employee deleted successfully");
+            }
+            catch (Exception ex)
+            {
+                await ToastService.ShowErrorAsync($"Failed to delete employee: {ex.Message}");
+            }
         }
         showDeleteConfirm = false;
         employeeToDelete = null;
@@ -257,13 +260,20 @@ else
 
     private async Task DeleteSelected()
     {
-        var employeesToDelete = employees?.Where(e => selectedEmployees.Contains(e.Id)).ToList();
-        if (employeesToDelete != null)
+        var employeeIds = selectedEmployees.ToArray();
+        if (employeeIds.Any())
         {
-            DbContext.Employees.RemoveRange(employeesToDelete);
-            await DbContext.SaveChangesAsync();
-            selectedEmployees.Clear();
-            await LoadEmployeesAsync();
+            try
+            {
+                await EmployeeApiService.DeleteEmployeesAsync(employeeIds);
+                selectedEmployees.Clear();
+                await ToastService.ShowSuccessAsync($"{employeeIds.Length} employees deleted successfully");
+                await LoadEmployeesAsync();
+            }
+            catch (Exception ex)
+            {
+                await ToastService.ShowErrorAsync($"Failed to delete employees: {ex.Message}");
+            }
         }
     }
 

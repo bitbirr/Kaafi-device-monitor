@@ -1,9 +1,7 @@
 @page "/attendance"
 @using Kaafi.DeviceMonitor.Models
-@using Kaafi.DeviceMonitor.Data
-@using Microsoft.EntityFrameworkCore
-@inject ApplicationDbContext DbContext
-@inject IServiceProvider ServiceProvider
+@using Kaafi.DeviceMonitor.Services
+@inject AttendanceApiService AttendanceApiService
 @inject IJSRuntime JSRuntime
 @implements IDisposable
 @rendermode InteractiveServer
@@ -147,46 +145,22 @@ else
 
     protected override async Task OnInitializedAsync()
     {
-        devices = await DbContext.Devices.ToListAsync();
+        devices = await AttendanceApiService.GetDevicesAsync();
         await LoadAttendanceAsync();
     }
 
     private async Task LoadAttendanceAsync()
     {
-        var query = DbContext.Attendances
-            .Include(a => a.Employee)
-            .Include(a => a.Device)
-            .AsQueryable();
+        var (attendance, totalCount) = await AttendanceApiService.GetAttendanceAsync(
+            employeeFilter: employeeFilter,
+            dateFrom: dateFrom,
+            dateTo: dateTo,
+            deviceFilter: deviceFilter,
+            page: currentPage,
+            pageSize: pageSize);
 
-        if (!string.IsNullOrWhiteSpace(employeeFilter))
-        {
-            query = query.Where(a => a.Employee != null && (a.Employee.FullName.Contains(employeeFilter) || a.Employee.Code.Contains(employeeFilter)));
-        }
-
-        if (dateFrom.HasValue)
-        {
-            query = query.Where(a => a.Timestamp >= dateFrom.Value.Date);
-        }
-
-        if (dateTo.HasValue)
-        {
-            query = query.Where(a => a.Timestamp <= dateTo.Value.Date.AddDays(1));
-        }
-
-        if (!string.IsNullOrWhiteSpace(deviceFilter))
-        {
-            var deviceId = int.Parse(deviceFilter);
-            query = query.Where(a => a.DeviceId == deviceId);
-        }
-
-        var totalRecords = await query.CountAsync();
-        totalPages = (int)Math.Ceiling(totalRecords / (double)pageSize);
-
-        attendanceRecords = await query
-            .OrderByDescending(a => a.Timestamp)
-            .Skip((currentPage - 1) * pageSize)
-            .Take(pageSize)
-            .ToListAsync();
+        attendanceRecords = attendance;
+        totalPages = (int)Math.Ceiling(totalCount / (double)pageSize);
     }
 
     private async Task ApplyFilters()

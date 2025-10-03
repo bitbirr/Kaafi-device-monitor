@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Kaafi.DeviceMonitor.Data;
@@ -6,6 +7,7 @@ using Kaafi.DeviceMonitor.Services;
 
 namespace Kaafi.DeviceMonitor.Controllers;
 
+[Authorize]
 [ApiController]
 [Route("api/[controller]")]
 public class DevicesController : ControllerBase
@@ -46,6 +48,36 @@ public class DevicesController : ControllerBase
     [HttpPost]
     public async Task<ActionResult<Device>> CreateDevice(Device device)
     {
+        if (!ModelState.IsValid)
+        {
+            return BadRequest(ModelState);
+        }
+
+        // Validate required fields
+        if (string.IsNullOrWhiteSpace(device.Name))
+        {
+            return BadRequest("Device name is required");
+        }
+
+        if (string.IsNullOrWhiteSpace(device.IP))
+        {
+            return BadRequest("Device IP address is required");
+        }
+
+        // Basic IP address validation
+        if (!System.Net.IPAddress.TryParse(device.IP, out _))
+        {
+            return BadRequest("Invalid IP address format");
+        }
+
+        // Check for duplicate IP
+        var existingDevice = await _context.Devices.FirstOrDefaultAsync(d => d.IP == device.IP);
+        if (existingDevice != null)
+        {
+            return BadRequest("Device with this IP address already exists");
+        }
+
+        device.Status = "Unknown";
         _context.Devices.Add(device);
         await _context.SaveChangesAsync();
         return CreatedAtAction(nameof(GetDevice), new { id = device.Id }, device);
@@ -56,7 +88,36 @@ public class DevicesController : ControllerBase
     {
         if (id != device.Id)
         {
-            return BadRequest();
+            return BadRequest("ID mismatch");
+        }
+
+        if (!ModelState.IsValid)
+        {
+            return BadRequest(ModelState);
+        }
+
+        // Validate required fields
+        if (string.IsNullOrWhiteSpace(device.Name))
+        {
+            return BadRequest("Device name is required");
+        }
+
+        if (string.IsNullOrWhiteSpace(device.IP))
+        {
+            return BadRequest("Device IP address is required");
+        }
+
+        // Basic IP address validation
+        if (!System.Net.IPAddress.TryParse(device.IP, out _))
+        {
+            return BadRequest("Invalid IP address format");
+        }
+
+        // Check for duplicate IP (excluding current device)
+        var existingDevice = await _context.Devices.FirstOrDefaultAsync(d => d.IP == device.IP && d.Id != id);
+        if (existingDevice != null)
+        {
+            return BadRequest("Device with this IP address already exists");
         }
 
         _context.Entry(device).State = EntityState.Modified;

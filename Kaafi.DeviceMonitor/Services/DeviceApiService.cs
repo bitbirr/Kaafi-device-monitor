@@ -62,7 +62,7 @@ public class DeviceApiService
         return await response.Content.ReadAsStringAsync();
     }
 
-    public async Task<List<DeviceHistory>> GetDeviceHistoryAsync(int deviceId, DateTime? startDate = null, DateTime? endDate = null, int page = 1, int pageSize = 20)
+    public async Task<(List<DeviceHistory> history, int totalCount)> GetDeviceHistoryAsync(int deviceId, DateTime? startDate = null, DateTime? endDate = null, int page = 1, int pageSize = 20)
     {
         var url = $"api/devices/{deviceId}/history?page={page}&pageSize={pageSize}";
         if (startDate.HasValue)
@@ -74,7 +74,12 @@ public class DeviceApiService
             url += $"&endDate={endDate.Value:yyyy-MM-dd}";
         }
 
-        var history = await _httpClient.GetFromJsonAsync<List<DeviceHistory>>(url);
-        return history ?? new List<DeviceHistory>();
+        var response = await _httpClient.GetAsync(url);
+        response.EnsureSuccessStatusCode();
+
+        var history = await response.Content.ReadFromJsonAsync<List<DeviceHistory>>() ?? new List<DeviceHistory>();
+        var totalCount = int.Parse(response.Headers.GetValues("X-Total-Count").FirstOrDefault() ?? "0");
+
+        return (history, totalCount);
     }
 }

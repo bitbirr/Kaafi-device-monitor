@@ -1,10 +1,8 @@
 @page "/devices"
 @using Kaafi.DeviceMonitor.Models
-@using Kaafi.DeviceMonitor.Data
 @using Kaafi.DeviceMonitor.Services
-@using Microsoft.EntityFrameworkCore
-@inject ApplicationDbContext DbContext
-@inject IServiceProvider ServiceProvider
+@inject DeviceApiService DeviceApiService
+@inject ToastService ToastService
 @rendermode InteractiveServer
 
 <PageTitle>Devices</PageTitle>
@@ -195,6 +193,7 @@ else
     private bool showHistoryModal = false;
     private List<DeviceHistory>? selectedDeviceHistory;
     private string selectedDeviceName = string.Empty;
+    private int selectedDeviceId = 0;
     private string searchTerm = string.Empty;
     private HashSet<int> selectedDevices = new();
     private bool showRegisterModal = false;
@@ -212,52 +211,22 @@ else
 
     private async Task LoadDevicesAsync()
     {
-        var query = DbContext.Devices.AsQueryable();
-
-        if (!string.IsNullOrWhiteSpace(searchTerm))
-        {
-            query = query.Where(d => d.Name.Contains(searchTerm) || d.IP.Contains(searchTerm));
-        }
-
-        devices = await query
-            .OrderBy(d => d.Id)
-            .ToListAsync();
+        devices = await DeviceApiService.GetDevicesAsync(searchTerm);
     }
 
     private async Task ManualPingAsync(int deviceId)
     {
-        var device = await DbContext.Devices.FindAsync(deviceId);
-        if (device != null)
-        {
-            var status = await DevicePingService.PingDeviceAsync(device.IP);
-            device.Status = status;
-            
-            if (status == "Online")
-            {
-                device.LastActive = DateTime.UtcNow;
-            }
-
-            // Log to history
-            var history = new DeviceHistory
-            {
-                DeviceId = device.Id,
-                Status = status,
-                Timestamp = DateTime.UtcNow
-            };
-
-            DbContext.DeviceHistories.Add(history);
-            await DbContext.SaveChangesAsync();
-            
-            await LoadDevicesAsync();
-            StateHasChanged();
-        }
+        await DeviceApiService.PingDeviceAsync(deviceId);
+        await LoadDevicesAsync();
+        StateHasChanged();
     }
 
     private async Task ShowHistory(int deviceId)
     {
-        var device = await DbContext.Devices.FindAsync(deviceId);
+        var device = await DeviceApiService.GetDeviceAsync(deviceId);
         if (device != null)
         {
+            selectedDeviceId = deviceId;
             selectedDeviceName = device.Name;
             await LoadDeviceHistory(deviceId);
             showHistoryModal = true;
@@ -266,27 +235,15 @@ else
 
     private async Task LoadDeviceHistory(int deviceId)
     {
-        var query = DbContext.DeviceHistories
-            .Where(h => h.DeviceId == deviceId);
+        var (history, totalCount) = await DeviceApiService.GetDeviceHistoryAsync(
+            deviceId,
+            historyStartDate,
+            historyEndDate,
+            historyCurrentPage,
+            historyPageSize);
 
-        if (historyStartDate.HasValue)
-        {
-            query = query.Where(h => h.Timestamp >= historyStartDate.Value.Date);
-        }
-
-        if (historyEndDate.HasValue)
-        {
-            query = query.Where(h => h.Timestamp <= historyEndDate.Value.Date.AddDays(1));
-        }
-
-        var totalRecords = await query.CountAsync();
-        historyTotalPages = (int)Math.Ceiling(totalRecords / (double)historyPageSize);
-
-        selectedDeviceHistory = await query
-            .OrderByDescending(h => h.Timestamp)
-            .Skip((historyCurrentPage - 1) * historyPageSize)
-            .Take(historyPageSize)
-            .ToListAsync();
+        selectedDeviceHistory = history;
+        historyTotalPages = (int)Math.Ceiling(totalCount / (double)historyPageSize);
     }
 
     private void CloseHistory()
@@ -294,6 +251,7 @@ else
         showHistoryModal = false;
         selectedDeviceHistory = null;
         selectedDeviceName = string.Empty;
+        selectedDeviceId = 0;
         historyStartDate = null;
         historyEndDate = null;
         historyCurrentPage = 1;
@@ -301,15 +259,11 @@ else
 
     private async Task RefreshHistory()
     {
-        if (showHistoryModal && !string.IsNullOrEmpty(selectedDeviceName))
+        if (showHistoryModal && selectedDeviceId > 0)
         {
-            var device = await DbContext.Devices.FirstOrDefaultAsync(d => d.Name == selectedDeviceName);
-            if (device != null)
-            {
-                historyCurrentPage = 1; // Reset to first page when filters change
-                await LoadDeviceHistory(device.Id);
-                StateHasChanged();
-            }
+            historyCurrentPage = 1; // Reset to first page when filters change
+            await LoadDeviceHistory(selectedDeviceId);
+            StateHasChanged();
         }
     }
 
@@ -363,11 +317,13 @@ else
             return;
         }
 
-        DbContext.Devices.Add(newDevice);
-        await DbContext.SaveChangesAsync();
-        showRegisterModal = false;
-        newDevice = new();
-        await LoadDevicesAsync();
+        var createdDevice = await DeviceApiService.CreateDeviceAsync(newDevice);
+        if (createdDevice != null)
+        {
+            showRegisterModal = false;
+            newDevice = new Device { Port = 4370 };
+            await LoadDevicesAsync();
+        }
     }
 
     private void CancelRegister()

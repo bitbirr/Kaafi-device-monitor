@@ -55,7 +55,11 @@ public class EmployeeApiService
 
     public async Task DeleteEmployeesAsync(int[] ids)
     {
-        var response = await _httpClient.DeleteAsJsonAsync("api/employees/bulk", ids);
+        var request = new HttpRequestMessage(HttpMethod.Delete, "api/employees/bulk")
+        {
+            Content = JsonContent.Create(ids)
+        };
+        var response = await _httpClient.SendAsync(request);
         response.EnsureSuccessStatusCode();
     }
 }
