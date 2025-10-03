@@ -22,4 +22,5 @@ public class Device
     public DateTime? LastActive { get; set; }
 
     public ICollection<DeviceHistory> History { get; set; } = new List<DeviceHistory>();
+    public ICollection<Enrollment> Enrollments { get; set; } = new List<Enrollment>();
 }
