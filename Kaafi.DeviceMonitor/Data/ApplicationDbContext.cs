@@ -46,6 +46,7 @@ public class ApplicationDbContext : DbContext
             entity.Property(e => e.Id).ValueGeneratedOnAdd();
             entity.Property(e => e.Code).IsRequired();
             entity.Property(e => e.FullName).IsRequired();
+            entity.Property(e => e.CreatedAt).IsRequired();
             entity.HasMany(e => e.Enrollments)
                 .WithOne(e => e.Employee)
                 .HasForeignKey(e => e.EmployeeId)
@@ -56,6 +57,7 @@ public class ApplicationDbContext : DbContext
         {
             entity.HasKey(e => e.Id);
             entity.Property(e => e.Id).ValueGeneratedOnAdd();
+            entity.Property(e => e.EnrollId).IsRequired();
             entity.Property(e => e.Template).IsRequired();
             entity.Property(e => e.CreatedAt).IsRequired();
             entity.HasOne(e => e.Device)

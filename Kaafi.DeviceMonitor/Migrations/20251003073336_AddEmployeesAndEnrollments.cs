@@ -19,7 +19,8 @@ namespace Kaafi.DeviceMonitor.Migrations
                         .Annotation("Sqlite:Autoincrement", true),
                     Code = table.Column<string>(type: "TEXT", maxLength: 50, nullable: false),
                     FullName = table.Column<string>(type: "TEXT", maxLength: 200, nullable: false),
-                    Dept = table.Column<string>(type: "TEXT", maxLength: 100, nullable: false)
+                    Dept = table.Column<string>(type: "TEXT", maxLength: 100, nullable: false),
+                    CreatedAt = table.Column<DateTime>(type: "TEXT", nullable: false)
                 },
                 constraints: table =>
                 {
@@ -34,8 +35,9 @@ namespace Kaafi.DeviceMonitor.Migrations
                         .Annotation("Sqlite:Autoincrement", true),
                     EmployeeId = table.Column<int>(type: "INTEGER", nullable: false),
                     DeviceId = table.Column<int>(type: "INTEGER", nullable: false),
+                    EnrollId = table.Column<string>(type: "TEXT", maxLength: 50, nullable: false),
                     FingerIndex = table.Column<int>(type: "INTEGER", nullable: false),
-                    Template = table.Column<string>(type: "TEXT", nullable: false),
+                    Template = table.Column<byte[]>(type: "BLOB", nullable: false),
                     CreatedAt = table.Column<DateTime>(type: "TEXT", nullable: false)
                 },
                 constraints: table =>
